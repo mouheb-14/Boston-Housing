@@ -2,23 +2,33 @@ import React, { useState } from 'react';
 import { Settings2, Info, Play, RefreshCw, UploadCloud, ChevronDown } from 'lucide-react';
 
 const ALGORITHMS = {
-  svm: { name: 'Support Vector Machine (SVM)', desc: 'Effective in high dimensional spaces. Good for classification.' },
-  rf: { name: 'Random Forest', desc: 'Ensemble learning method that operates by constructing multiple decision trees.' },
-  knn: { name: 'K-Nearest Neighbors (KNN)', desc: 'Non-parametric method used for classification and regression.' },
-  lr: { name: 'Logistic Regression', desc: 'Statistical model that models the probability of a binary class.' },
-  nn: { name: 'Neural Networks', desc: 'Deep learning models inspired by the brain structure.' }
+  lr: { name: 'Linear Regression', desc: 'Simple linear approach for modeling the relationship between a dependent variable and one or more independent variables.' },
+  svr: { name: 'Support Vector Regression (SVR)', desc: 'Versatile model that can handle non-linear relationships using kernels. Good for small to medium datasets.' },
+  rf: { name: 'Random Forest Regression', desc: 'Powerful ensemble method that combines multiple decision trees to produce more robust predictions.' },
+  knn: { name: 'KNN Regression', desc: 'Predicts the target value based on the average of its k-nearest neighbors in the feature space.' },
 };
 
 const ModelsView = () => {
   const [selectedAlgo, setSelectedAlgo] = useState('rf');
   const [trainingMode, setTrainingMode] = useState('scratch');
 
+  const startTraining = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/train', { method: 'POST' });
+      const data = await response.json();
+      alert("Entraînement lancé ! Les résultats apparaîtront dans l'onglet Experiments une fois terminés.");
+    } catch (error) {
+      console.error("Erreur lors du lancement de l'entraînement:", error);
+      alert("Erreur de connexion au backend. Assurez-vous que l'API est lancée.");
+    }
+  };
+
   return (
     <div className="space-y-6 fade-in">
       <div className="flex justify-between items-end pb-4 border-b border-slate-200">
         <div>
           <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-500 bg-clip-text text-transparent">Model Selection & Configuration</h2>
-          <p className="text-slate-500 mt-1">Configure your algorithms and tune hyperparameters before training.</p>
+          <p className="text-slate-500 mt-1">Configure your regression algorithms and tune hyperparameters.</p>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-lg">
           <button 
@@ -90,7 +100,6 @@ const ModelsView = () => {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">n_neighbors (k)</label>
                   <input type="number" className="input-field max-w-xs" defaultValue={5} min={1} />
-                  <p className="text-xs text-slate-400 mt-1">Number of neighbors to use by default for kneighbors queries.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">weights</label>
@@ -112,18 +121,10 @@ const ModelsView = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-1">max_depth</label>
                   <input type="number" className="input-field" placeholder="None" />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">criterion</label>
-                  <select className="input-field max-w-xs cursor-pointer">
-                    <option>gini</option>
-                    <option>entropy</option>
-                    <option>log_loss</option>
-                  </select>
-                </div>
               </div>
             )}
 
-            {selectedAlgo === 'svm' && (
+            {selectedAlgo === 'svr' && (
               <div className="space-y-4 animate-in fade-in grid grid-cols-2 gap-4">
                 <div className="col-span-2 md:col-span-1">
                   <label className="block text-sm font-medium text-slate-700 mb-1">C (Regularization)</label>
@@ -135,22 +136,21 @@ const ModelsView = () => {
                     <option>rbf</option>
                     <option>linear</option>
                     <option>poly</option>
-                    <option>sigmoid</option>
                   </select>
                 </div>
               </div>
             )}
             
-            {['lr', 'nn'].includes(selectedAlgo) && (
+            {selectedAlgo === 'lr' && (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 py-10">
                 <Settings2 size={48} className="mb-2 opacity-20" />
-                <p>Default parameters applied. Advanced configuration coming soon.</p>
+                <p>Simple Linear Regression. No custom hyperparameters available.</p>
               </div>
             )}
           </div>
 
           <div className="mt-8 flex justify-end">
-            <button className="btn-primary flex items-center gap-2 px-8">
+            <button className="btn-primary flex items-center gap-2 px-8" onClick={startTraining}>
               <Play size={18} /> Start Training
             </button>
           </div>

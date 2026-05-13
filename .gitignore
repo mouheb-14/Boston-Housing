@@ -11,6 +11,9 @@ __pycache__/
 env/
 venv/
 .venv/
+venv_64/
+mlruns/
+mlflow.db
 .pytest_cache/
 
 # Environment Variables

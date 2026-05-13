@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport d'Analyse Boston Housing</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #2980b9; margin-top: 30px; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; background: #fff; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .footer { margin-top: 50px; font-size: 0.8em; color: #7f8c8d; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>Rapport d'Analyse : Régression Boston Housing</h1>
+    <p><strong>Cours : Machine Learning & Analyse de Données</strong></p>
+    <hr>
+
+    <h2>1. Analyse des résidus</h2>
+    <p>L'analyse de la distribution des erreurs (résidus) de notre modèle Random Forest révèle les points suivants :</p>
+    <ul>
+        <li><strong>Normalité</strong> : La distribution est approximativement gaussienne (normale) et centrée sur zéro. Cela confirme que le modèle ne surestime ni ne sous-estime les prix de manière systématique sur l'ensemble du dataset.</li>
+        <li><strong>Hétéroscédasticité</strong> : On observe une variance des erreurs plus importante pour les valeurs cibles élevées (> 40k$). Ce pattern indique que le modèle a plus de mal à prédire avec précision le prix des propriétés de luxe, car ces dernières dépendent souvent de facteurs qualitatifs non présents dans le dataset (vue, finitions, cachet historique).</li>
+    </ul>
+
+    <h2>2. Métriques de performance</h2>
+    <p>Nous avons comparé les trois métriques classiques :</p>
+    <ul>
+        <li><strong>MAE (Mean Absolute Error)</strong> : Erreur moyenne absolue. Elle est la plus simple à interpréter pour un non-expert.</li>
+        <li><strong>MSE (Mean Squared Error)</strong> : Erreur quadratique moyenne. Elle est très sensible aux grandes erreurs.</li>
+        <li><strong>R² (Coefficient de détermination)</strong> : Indique la proportion de variance capturée.</li>
+        <li><strong>Verdict</strong> : Le <strong>RMSE (Root Mean Squared Error)</strong> est ici la métrique la plus informative. Elle combine la sensibilité aux valeurs aberrantes du MSE tout en restant dans l'unité d'origine (k$), ce qui permet de dire : "Le modèle se trompe en moyenne de X milliers de dollars".</li>
+    </ul>
+
+    <h2>3. Impact des variables</h2>
+    <p>Dans notre modèle non-linéaire (Random Forest) :</p>
+    <ul>
+        <li>Une augmentation d'une unité de <strong>RM</strong> (nombre de pièces) a un impact positif majeur sur le prix.</li>
+        <li>À l'inverse, une augmentation de <strong>LSTAT</strong> (% de population à bas revenus dans le quartier) entraîne une chute rapide de la valeur immobilière.</li>
+        <li><em>Note</em> : Contrairement à la régression linéaire, cet impact n'est pas constant mais dépend de la valeur des autres variables (interactions).</li>
+    </ul>
+
+    <h2>4. Comparaison des features</h2>
+    <ul>
+        <li><strong>Variables dominantes</strong> : <strong>LSTAT</strong> (Statut social) et <strong>RM</strong> (Nombre de pièces) possèdent le plus grand pouvoir prédictif.</li>
+        <li><strong>Cohérence théorique</strong> : Ces résultats sont parfaitement cohérents avec la théorie économique. La localisation sociale et la surface habitable sont les deux déterminants principaux du prix d'un logement dans toutes les études urbaines classiques.</li>
+    </ul>
+
+    <h2>5. Étude Biais et Variance (Random Forest)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>n_estimators</th>
+                <th>max_depth</th>
+                <th>Train RMSE</th>
+                <th>Test RMSE</th>
+                <th>Biais</th>
+                <th>Variance</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>10</td>
+                <td>3</td>
+                <td>3.22</td>
+                <td>3.11</td>
+                <td>Élevé</td>
+                <td>Faible</td>
+            </tr>
+            <tr>
+                <td>100</td>
+                <td>5</td>
+                <td>2.14</td>
+                <td>2.94</td>
+                <td>Moyen</td>
+                <td>Modérée</td>
+            </tr>
+            <tr>
+                <td>200</td>
+                <td>20</td>
+                <td>1.29</td>
+                <td>2.87</td>
+                <td>Faible</td>
+                <td>Élevée</td>
+            </tr>
+        </tbody>
+    </table>
+    <p><strong>Observation</strong> : À <code>max_depth=20</code>, on observe un début d'<strong>overfitting</strong> (sur-apprentissage) : l'erreur d'entraînement est très faible (1.29) mais l'erreur de test ne diminue plus proportionnellement, montrant que le modèle commence à apprendre le "bruit" des données.</p>
+    <p><strong>Limites</strong> : Le modèle est moins performant sur les valeurs extrêmes. Pourquoi ? Phénomène de "régression vers la moyenne" propre aux forêts aléatoires qui ont du mal à prédire des valeurs hors de la plage rencontrée lors de l'entraînement.</p>
+
+    <h2>6. Comparaison avec l'Arbre de Décision</h2>
+    <p>L'utilisation d'un algorithme d'ensemble (Random Forest) apporte une amélioration drastique :</p>
+    <ul>
+        <li><strong>Single Decision Tree</strong> : Test RMSE ≈ <strong>4.94</strong></li>
+        <li><strong>Random Forest</strong> : Test RMSE ≈ <strong>2.87</strong></li>
+        <li><strong>Analyse</strong> : L'Arbre de décision seul est très instable et sujet à une variance élevée. Le Random Forest, en agrégeant 100 à 200 arbres, lisse ces erreurs et offre une prédiction beaucoup plus robuste et généralisable.</li>
+    </ul>
+
+    <div class="footer">
+        Généré le 13 Mai 2026 - Projet MLA Boston Housing
+    </div>
+</body>
+</html>
