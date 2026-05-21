@@ -17,9 +17,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Chargement du preprocessor et du modèle par défaut (Random Forest)
+# Chargement du preprocessor et du modèle par défaut
 MODEL_PATH = "../models/random_forest_model.joblib"
 PREPROCESSOR_PATH = "../models/preprocessor.joblib"
+
+# Configurer l'URI de tracking MLflow vers SQLite
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+
+def load_production_model():
+    """Tente de charger le modèle depuis le Model Registry, sinon utilise le modèle local."""
+    try:
+        model = mlflow.sklearn.load_model("models:/boston_housing_model/Production")
+        return model, True
+    except Exception as e:
+        if os.path.exists(MODEL_PATH):
+            model = joblib.load(MODEL_PATH)
+            return model, False
+        return None, False
 
 @app.get("/")
 def read_root():
@@ -28,8 +42,49 @@ def read_root():
 @app.get("/models/status")
 def get_models_status():
     """Vérifie si les modèles ont été entraînés."""
-    exists = os.path.exists(MODEL_PATH)
-    return {"models_trained": exists}
+    model, from_registry = load_production_model()
+    return {
+        "models_trained": model is not None,
+        "source": "Model Registry (Production)" if from_registry else "Local joblib"
+    }
+
+@app.post("/predict")
+def predict(data: dict):
+    """
+    Endpoint de prédiction conforme au format MLflow.
+    Format attendu : {"instances": [[...]]}
+    """
+    model, from_registry = load_production_model()
+    if not model:
+        raise HTTPException(status_code=500, detail="Aucun modèle disponible pour la prédiction.")
+    
+    try:
+        # Chargement du préprocesseur
+        if os.path.exists(PREPROCESSOR_PATH):
+            preprocessor = joblib.load(PREPROCESSOR_PATH)
+        else:
+            raise Exception("Préprocesseur introuvable.")
+            
+        instances = data.get("instances", [])
+        if not instances:
+            raise Exception("Le paramètre 'instances' est vide ou manquant.")
+            
+        # Colonnes standards du dataset Boston Housing (sans ID ni medv)
+        columns = ["crim", "zn", "indus", "chas", "nox", "rm", "age", "dis", "rad", "tax", "ptratio", "black", "lstat"]
+        df = pd.DataFrame(instances, columns=columns)
+        
+        # Prétraitement
+        df_proc = preprocessor.transform(df)
+        
+        # Prédictions
+        preds = model.predict(df_proc)
+        
+        return {
+            "predictions": preds.tolist(),
+            "model_source": "Model Registry (Production)" if from_registry else "Local Fallback"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erreur de prédiction : {str(e)}")
 
 @app.post("/train")
 def run_training():

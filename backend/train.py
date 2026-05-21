@@ -82,6 +82,9 @@ def train_and_log_models():
         mlflow.log_metric("Test_RMSE", test_rmse)
         mlflow.log_metric("R2", r2_score(y_test, y_test_pred))
         
+        # Log model
+        mlflow.sklearn.log_model(sk_model=dt, artifact_path="model")
+        
         # Plots
         res_path = plot_residuals(y_test, y_test_pred, "DecisionTree")
         fi_path = plot_feature_importance(dt, feature_names, "DecisionTree")
@@ -126,6 +129,9 @@ def train_and_log_models():
             mlflow.log_metric("Variance", variance)
             mlflow.log_metric("R2", r2_score(y_test, y_test_pred))
             
+            # Log model
+            mlflow.sklearn.log_model(sk_model=rf, artifact_path="model")
+            
             # Artefacts
             res_path = plot_residuals(y_test, y_test_pred, run_name)
             fi_path = plot_feature_importance(rf, feature_names, run_name)
@@ -147,4 +153,7 @@ def train_and_log_models():
     print("Analyse de la Tâche 4 terminée. Consultez MLflow pour les résultats détaillés.")
 
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--retrain":
+        print("[MLOps] Retraining triggered due to detected data drift!")
     train_and_log_models()
