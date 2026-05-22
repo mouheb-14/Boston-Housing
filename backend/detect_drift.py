@@ -1,119 +1,85 @@
-import pandas as pd
-import numpy as np
 import os
-import sys
-import subprocess
+import json
+import pandas as pd
 import mlflow
-from scipy import stats
+import subprocess
+from evidently import Report
+from evidently.presets import DataDriftPreset
+from scipy.stats import ks_2samp
 
-# Imports d'Evidently
-from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset, DataQualityPreset
-from evidently.metrics import DatasetDriftMetric
+# Configuration MLflow
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment('monitoring_drift')
 
-def detect_and_handle_drift():
-    print("[MLOps] Analyse du drift de données...")
-    
-    # 1. Déterminer les bons chemins d'accès
-    data_dir = 'data' if os.path.exists('data') else '../data'
-    ref_path = os.path.join(data_dir, 'reference_data.csv')
-    prod_path = os.path.join(data_dir, 'production_data.csv')
-    
-    if not os.path.exists(ref_path) or not os.path.exists(prod_path):
-        print("[MLOps] Erreur : Les fichiers de référence ou de production sont introuvables. Lancez d'abord 'simulate_drift.py'.")
-        return
-        
-    ref_df = pd.read_csv(ref_path)
-    prod_df = pd.read_csv(prod_path)
-    
-    # Séparer les features de la cible
-    X_train = ref_df.drop(columns=['medv'])
-    X_prod = prod_df.drop(columns=['medv'])
-    
-    # 2. Configurer l'expérience MLflow
-    mlflow.set_tracking_uri("sqlite:///mlflow.db" if os.path.exists("mlflow.db") else "sqlite:///backend/mlflow.db")
-    mlflow.set_experiment("monitoring_drift")
-    
-    with mlflow.start_run(run_name="drift_check_v1"):
-        # --- PARTIE 6.3: Génération du rapport Evidently ---
-        print("[MLOps] Exécution du rapport de drift avec Evidently AI...")
-        report = Report(metrics=[DataDriftPreset(), DataQualityPreset()])
-        report.run(reference_data=X_train, current_data=X_prod)
-        
-        drift_report_html = "drift_report.html"
-        report.save_html(drift_report_html)
-        mlflow.log_artifact(drift_report_html)
-        
-        # Extraction des scores numériques
-        score_report = Report(metrics=[DatasetDriftMetric()])
-        score_report.run(reference_data=X_train, current_data=X_prod)
-        result = score_report.as_dict()
-        
-        drift_share = result['metrics'][0]['result']['drift_share']
-        dataset_drift = result['metrics'][0]['result']['dataset_drift']
-        n_drifted = result['metrics'][0]['result']['number_of_drifted_columns']
-        n_total = result['metrics'][0]['result']['number_of_columns']
-        
-        # Logger dans MLflow
-        mlflow.log_metric('drift_share', drift_share)
-        mlflow.log_metric('drifted_columns', n_drifted)
-        mlflow.log_metric('total_columns', n_total)
-        mlflow.log_metric('dataset_drifted', int(dataset_drift))
-        
-        print(f"[MLOps] Part de drift : {drift_share:.2%} | Colonnes driftées : {n_drifted}/{n_total}")
-        
-        # --- PARTIE 6.4: Test statistique KS-test par feature ---
-        print("[MLOps] Calcul des tests statistiques Kolmogorov-Smirnov...")
-        ks_results = []
-        for col in X_train.select_dtypes(include='number').columns:
-            stat, pvalue = stats.ks_2samp(X_train[col], X_prod[col])
-            drifted = pvalue < 0.05
-            ks_results.append({
-                'feature': col,
-                'ks_stat': round(stat, 4),
-                'p_value': round(pvalue, 4),
-                'drifted': drifted
-            })
-            mlflow.log_metric(f'ks_pvalue_{col}', pvalue)
-            
-        df_drift = pd.DataFrame(ks_results)
-        ks_results_csv = 'ks_drift_results.csv'
-        df_drift.to_csv(ks_results_csv, index=False)
-        mlflow.log_artifact(ks_results_csv)
-        
-        print(df_drift.to_string(index=False))
-        
-        # Nettoyage des fichiers HTML/CSV locaux pour garder le repo propre
-        if os.path.exists(drift_report_html): os.remove(drift_report_html)
-        if os.path.exists(ks_results_csv): os.remove(ks_results_csv)
-        
-        # --- PARTIE 6.5: Déclenchement automatique du ré-entraînement ---
-        SEUIL_DRIFT = 0.30  # 30% de features driftées -> ré-entraînement
-        SEUIL_WARN = 0.15   # 15% -> alerte sans ré-entraînement
-        
-        # Déterminer le script train.py
-        train_script = 'backend/train.py' if os.path.exists('backend/train.py') else 'train.py'
-        
-        if drift_share > SEUIL_DRIFT:
-            print(f"[MLOps] CRITIQUE : Drift de {drift_share:.2%} > Seuil de {SEUIL_DRIFT:.0%}")
-            print(f"[MLOps] Déclenchement automatique du ré-entraînement de modèle...")
-            
-            # Utilise le même interpréteur Python que celui qui exécute ce script
-            subprocess.run([sys.executable, train_script, '--retrain'], check=True)
-            mlflow.log_metric('retrain_triggered', 1)
-            print("[MLOps] Ré-entraînement terminé avec succès.")
-            
-            # Enregistrer le modèle fraîchement entraîné
-            register_script = 'backend/register_best_model.py' if os.path.exists('backend/register_best_model.py') else 'register_best_model.py'
-            subprocess.run([sys.executable, register_script], check=True)
-            print("[MLOps] Meilleur modèle ré-enregistré dans le Model Registry.")
-            
-        elif drift_share > SEUIL_WARN:
-            print(f"[MLOps] AVERTISSEMENT : Drift de {drift_share:.2%} - Surveillance renforcée requise.")
-            mlflow.log_metric('retrain_triggered', 0)
-        else:
-            print(f"[MLOps] OK : Drift de {drift_share:.2%} - Modèle stable.")
-            mlflow.log_metric('retrain_triggered', 0)
+# Paths to data
+TRAIN_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "boston_train.csv")
+PROD_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "test.csv")
 
-if __name__ == "__main__":
-    detect_and_handle_drift()
+# Load datasets
+train_df = pd.read_csv(TRAIN_PATH)
+prod_df = pd.read_csv(PROD_PATH)
+
+# Ne comparer que les colonnes numeriques presentes dans les deux datasets
+numeric_cols = [col for col in train_df.select_dtypes(include='number').columns if col in prod_df.columns]
+
+with mlflow.start_run(run_name='drift_check_v1'):
+    # 6.3 - Generation du rapport Evidently
+    report = Report(metrics=[DataDriftPreset()])
+    snapshot = report.run(reference_data=train_df, current_data=prod_df)
+    
+    report_path = os.path.join(os.path.dirname(__file__), "..", "reports", "data_drift_report.html")
+    os.makedirs(os.path.dirname(report_path), exist_ok=True)
+    snapshot.save_html(report_path)
+    mlflow.log_artifact(report_path)
+    print(f"[Drift] Evidently report saved and logged as artifact.")
+
+    # 6.4 - Test statistique KS-test par feature
+    results = []
+    drifted_count = 0
+    for col in numeric_cols:
+        stat, pvalue = ks_2samp(train_df[col], prod_df[col])
+        is_drifted = pvalue < 0.05
+        if is_drifted:
+            drifted_count += 1
+            
+        results.append({
+            'feature': col,
+            'ks_stat': round(stat, 4),
+            'p_value': round(pvalue, 4),
+            'drifted': is_drifted
+        })
+        mlflow.log_metric(f'ks_pvalue_{col}', pvalue)
+        
+    df_drift = pd.DataFrame(results)
+    csv_path = os.path.join(os.path.dirname(__file__), "..", "reports", "ks_drift_results.csv")
+    df_drift.to_csv(csv_path, index=False)
+    mlflow.log_artifact(csv_path)
+    
+    # Metriques globales de drift
+    n_total = len(numeric_cols)
+    drift_share = drifted_count / n_total if n_total > 0 else 0
+    dataset_drifted = 1 if drift_share > 0.3 else 0
+    
+    mlflow.log_metric('drift_share', drift_share)
+    mlflow.log_metric('drifted_columns', drifted_count)
+    mlflow.log_metric('total_columns', n_total)
+    mlflow.log_metric('dataset_drifted', dataset_drifted)
+    
+    print(f"Drift share : {drift_share:.2%} | Colonnes driftees : {drifted_count}/{n_total}")
+
+    # 6.5 - Declenchement automatique du re-entrainement
+    SEUIL_DRIFT = 0.30
+    SEUIL_WARN = 0.15
+
+    if drift_share > SEUIL_DRIFT:
+        print(f"CRITIQUE : drift ({drift_share:.2%}) > seuil ({SEUIL_DRIFT:.0%})")
+        mlflow.log_metric('retrain_triggered', 1)
+        # Call training script
+        train_script = os.path.join(os.path.dirname(__file__), "train.py")
+        subprocess.run(['python', train_script, '--retrain'], check=True)
+    elif drift_share > SEUIL_WARN:
+        print(f"AVERTISSEMENT : drift ({drift_share:.2%}) - surveillance renforcee")
+        mlflow.log_metric('retrain_triggered', 0)
+    else:
+        print(f"OK : drift ({drift_share:.2%}) - modle stable")
+        mlflow.log_metric('retrain_triggered', 0)

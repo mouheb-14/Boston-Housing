@@ -1,6 +1,6 @@
 # Makefile pour orchestrer le pipeline MLOps du projet Boston Housing
 
-.PHONY: setup train register serve test pipeline
+.PHONY: setup train register serve test drift retrain pipeline
 
 # Utilisation du Python du venv pour assurer l'isolation
 PYTHON = .\backend\venv_64\Scripts\python.exe
@@ -23,5 +23,11 @@ serve:
 test:
 	$(PYTHON) backend/test_api.py
 
-pipeline: train register test
+drift:
+	$(PYTHON) backend/detect_drift.py
+
+retrain:
+	$(PYTHON) backend/auto_retrain.py
+
+pipeline: train register test drift
 	@echo [MLOps] Pipeline complet execute avec succes !

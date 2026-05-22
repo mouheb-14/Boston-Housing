@@ -1,44 +1,15 @@
-# Dependencies
-node_modules/
-dist/
-build/
-.npm
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-env/
-venv/
-.venv/
-venv_64/
-mlruns/
-mlflow.db
-.pytest_cache/
-
-# Environment Variables
-.env
-.env.local
-
-# IDEs and Editors
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Any specific AI planner artifacts just in case
-task.md
-implementation_plan.md
-walkthrough.md
+# Ignore virtual environment
+backend/venv_64/
+# Ignore python cache
+**/__pycache__/
+**/*.pyc
+# Ignore MLflow tracking DB and artifacts
+backend/mlflow.db
+backend/*.db
+# Ignore data and model files
+data/
+models/
+reports/
+# Ignore IDE files
+*.idea/
+*.vscode/

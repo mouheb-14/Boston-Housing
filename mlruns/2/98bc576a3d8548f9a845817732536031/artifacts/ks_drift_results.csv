@@ -1,0 +1,15 @@
+feature,ks_stat,p_value,drifted
+ID,0.0849,0.3583,False
+crim,0.0444,0.9684,False
+zn,0.0452,0.9633,False
+indus,0.0408,0.9861,False
+chas,0.0266,1.0,False
+nox,0.0646,0.6969,False
+rm,0.0549,0.8585,False
+age,0.0633,0.7209,False
+dis,0.0753,0.507,False
+rad,0.0452,0.963,False
+tax,0.0639,0.7097,False
+ptratio,0.031,0.9997,False
+black,0.0917,0.2721,False
+lstat,0.0666,0.6604,False

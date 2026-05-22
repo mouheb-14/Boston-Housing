@@ -46,7 +46,9 @@ def plot_feature_importance(model, feature_names, model_name):
 def train_and_log_models():
     # 1. Chargement des données
     print("Chargement des données...")
-    X, y = load_boston_data('../data/boston_train.csv')
+    # Load data using absolute path relative to this script
+    data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'boston_train.csv')
+    X, y = load_boston_data(data_path)
     X_train, X_test, y_train, y_test = get_train_test_split(X, y)
 
     # Noms des features
@@ -60,8 +62,10 @@ def train_and_log_models():
     X_test_proc = preprocessor.transform(X_test)
 
     # Dossier pour les modèles
-    if not os.path.exists('../models'):
-        os.makedirs('../models')
+    # Ensure models directory exists relative to script
+    models_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
+    if not os.path.exists(models_dir):
+        os.makedirs(models_dir)
 
     # Expérience MLflow
     mlflow.set_experiment("Boston_Housing_Task4")
@@ -146,10 +150,12 @@ def train_and_log_models():
 
             # Save the balanced model for the API
             if params['max_depth'] == 5:
-                joblib.dump(rf, "../models/random_forest_model.joblib")
+                model_path = os.path.join(models_dir, 'random_forest_model.joblib')
+                joblib.dump(rf, model_path)
 
     # Save preprocessor
-    joblib.dump(preprocessor, "../models/preprocessor.joblib")
+    preproc_path = os.path.join(models_dir, 'preprocessor.joblib')
+    joblib.dump(preprocessor, preproc_path)
     print("Analyse de la Tâche 4 terminée. Consultez MLflow pour les résultats détaillés.")
 
 if __name__ == "__main__":
